@@ -2,6 +2,7 @@ export type Preferences = { area: string; budget: string; beds: string };
 export type SearchQuery = { area: string; max_rent_cents?: number; min_beds?: number; latitude?: number; longitude?: number };
 export const preferenceKey = "haven:search-preferences:v1";
 export const emptyPreferences: Preferences = { area: "", budget: "", beds: "" };
+const validArea = (area: string) => /^\d{5}(?:-\d{4})?$/.test(area.trim()) || /^.{2,100}(?:,\s*|\s+)[a-z]{2}$/i.test(area.trim());
 
 export function readPreferences(value: unknown): Preferences {
   if (!value || typeof value !== "object") return { ...emptyPreferences };
@@ -14,7 +15,7 @@ export function readPreferences(value: unknown): Preferences {
 }
 export function searchQuery(p: Preferences, nearby?: { latitude: number; longitude: number }): SearchQuery {
   const area = p.area.trim();
-  if (!nearby && !/^\d{5}$/.test(area) && !/^[^,]{2,100},\s*[a-zA-Z]{2}$/.test(area)) throw new Error("Enter a ZIP code or a city followed by its two-letter state.");
+  if (!nearby && !validArea(area)) throw new Error("Enter a ZIP code or city and state, such as 01002, Amherst MA, or Amherst, MA.");
   const query: SearchQuery = { area: nearby ? "" : area };
   if (p.budget.trim()) {
     const budget = Number(p.budget);

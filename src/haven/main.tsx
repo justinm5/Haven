@@ -62,12 +62,20 @@ function Haven() {
         if (!contentType.toLowerCase().includes("json")) {
           setLiveAvailable(false); setError(""); setResult(null); return;
         }
-        let data: Results & { code?: string };
+        let data: Results & { code?: string; error?: string };
         try { data = await response.json(); }
         catch { setLiveAvailable(false); setError(""); setResult(null); return; }
         if (!response.ok) {
           if (data.code === "not_connected") { setLiveAvailable(false); setError(""); return; }
-          throw Error(data.code === "invalid_search" ? "Enter a ZIP code or city and state, and check your preferences." : "We couldn't load rentals right now. Please try again shortly.");
+          const messages: Record<string, string> = {
+            invalid_search: data.error || "Enter a ZIP code or city and state, then check your preferences.",
+            capacity: "Search is temporarily busy. Please try again later.",
+            provider_auth: "Live rental search is temporarily unavailable while the data connection is checked.",
+            provider_plan: "Live rental search is temporarily unavailable for this data source.",
+            provider_capacity: "The rental data source is temporarily at its request limit. Please try again later.",
+            provider_query: "The rental data source could not match that search. Try a ZIP code or city and state.",
+          };
+          throw Error(messages[data.code ?? ""] || "We couldn't load rentals right now. Please try again shortly.");
         }
         if (!Array.isArray(data.listings)) throw Error("We couldn't load rentals right now.");
         setLiveAvailable(true); setResult(data);

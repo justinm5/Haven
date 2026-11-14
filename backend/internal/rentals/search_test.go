@@ -32,6 +32,22 @@ func TestSearchParametersAndApproximateLocation(t *testing.T) {
 		}
 	}
 }
+func TestAcceptedAreaFormats(t *testing.T) {
+	for _, tc := range []struct{ input, city, state, zip string }{
+		{"01002", "", "", "01002"},
+		{"01002-1234", "", "", "01002"},
+		{"Amherst, MA", "Amherst", "MA", ""},
+		{"amherst ma", "Amherst", "MA", ""},
+		{"New York, ny", "New York", "NY", ""},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			p, err := (Query{Area: tc.input}).Parameters()
+			if err != nil || p.Get("city") != tc.city || p.Get("state") != tc.state || p.Get("zipCode") != tc.zip {
+				t.Fatalf("unexpected parameters %v, %v", p, err)
+			}
+		})
+	}
+}
 func TestConcurrentSearchIsCachedAndPreservesRealHistory(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,8 +95,26 @@ func TestProviderFailureHasNoFallbackOrAutomaticRetry(t *testing.T) {
 	c.endpoint = server.URL
 	c.HTTP = server.Client()
 	r, err := c.Search(context.Background(), Query{Area: "01002"})
-	if !errors.Is(err, ErrUnavailable) || len(r.Listings) != 0 || calls.Load() != 1 {
+	if !errors.Is(err, ErrProviderAuth) || len(r.Listings) != 0 || calls.Load() != 1 {
 		t.Fatalf("unexpected retry or fallback %+v %v", r, err)
+	}
+}
+func TestProviderFailuresAreClassifiedWithoutExposingBody(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		want   error
+	}{{401, ErrProviderAuth}, {403, ErrProviderPlan}, {402, ErrProviderPlan}, {429, ErrProviderQuota}, {400, ErrProviderQuery}, {422, ErrProviderQuery}, {500, ErrUnavailable}} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "secret provider detail", tc.status) }))
+			defer server.Close()
+			c := New("test-key")
+			c.endpoint = server.URL
+			c.HTTP = server.Client()
+			_, err := c.Search(context.Background(), Query{Area: "01002"})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+		})
 	}
 }
 func TestEmptySourceRemainsEmpty(t *testing.T) {

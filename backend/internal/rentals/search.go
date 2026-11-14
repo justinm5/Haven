@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -21,6 +22,10 @@ import (
 var ErrNotConfigured = errors.New("live listings are not configured")
 var ErrUnavailable = errors.New("live listings temporarily unavailable")
 var ErrQuota = errors.New("search capacity reached")
+var ErrProviderAuth = errors.New("live listings credentials were rejected")
+var ErrProviderPlan = errors.New("live listings provider plan does not allow this request")
+var ErrProviderQuota = errors.New("live listings provider request limit reached")
+var ErrProviderQuery = errors.New("live listings provider rejected the search parameters")
 
 type Query struct {
 	Area         string   `json:"area"`
@@ -89,18 +94,14 @@ func (q Query) Parameters() (url.Values, error) {
 		params.Set("radius", "10")
 	} else {
 		area := strings.TrimSpace(q.Area)
-		if regexp.MustCompile(`^\d{5}$`).MatchString(area) {
-			params.Set("zipCode", area)
+		if regexp.MustCompile(`^\d{5}(?:-\d{4})?$`).MatchString(area) {
+			params.Set("zipCode", strings.SplitN(area, "-", 2)[0])
 		} else {
-			parts := strings.Split(area, ",")
-			if len(parts) != 2 || len(strings.TrimSpace(parts[0])) < 2 || len(area) > 120 {
-				return nil, fmt.Errorf("enter a ZIP code or city followed by a two-letter state")
+			city, state, ok := splitCityState(area)
+			if !ok {
+				return nil, fmt.Errorf("enter a ZIP code or city and two-letter state, such as Amherst, MA")
 			}
-			state := strings.ToUpper(strings.TrimSpace(parts[1]))
-			if !regexp.MustCompile(`^[A-Z]{2}$`).MatchString(state) {
-				return nil, fmt.Errorf("use a two-letter state abbreviation")
-			}
-			params.Set("city", strings.Title(strings.ToLower(strings.Join(strings.Fields(parts[0]), " "))))
+			params.Set("city", city)
 			params.Set("state", state)
 		}
 	}
@@ -121,6 +122,30 @@ func (q Query) Parameters() (url.Values, error) {
 		}
 	}
 	return params, nil
+}
+
+var cityStatePattern = regexp.MustCompile(`(?i)^(.+?)(?:,\s*|\s+)([a-z]{2})$`)
+
+func splitCityState(area string) (string, string, bool) {
+	if len(area) > 120 {
+		return "", "", false
+	}
+	m := cityStatePattern.FindStringSubmatch(strings.TrimSpace(area))
+	if len(m) != 3 {
+		return "", "", false
+	}
+	city := strings.Join(strings.Fields(strings.TrimSpace(m[1])), " ")
+	if len(city) < 2 {
+		return "", "", false
+	}
+	// Keep conventional capitalization while preserving acronyms and punctuation.
+	words := strings.Fields(strings.ToLower(city))
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(word[:1]) + word[1:]
+		}
+	}
+	return strings.Join(words, " "), strings.ToUpper(m[2]), true
 }
 
 type providerListing struct {
@@ -231,7 +256,23 @@ func (c *Client) Search(ctx context.Context, q Query) (Results, error) {
 		return Results{}, ErrUnavailable
 	}
 	defer res.Body.Close()
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
+		// Record only the HTTP status; never log API keys, query values, or response bodies.
+		slog.Warn("live rental provider request failed", "status", res.StatusCode)
+	}
+	if res.StatusCode == http.StatusUnauthorized {
+		return Results{}, ErrProviderAuth
+	}
+	if res.StatusCode == http.StatusForbidden || res.StatusCode == http.StatusPaymentRequired {
+		return Results{}, ErrProviderPlan
+	}
+	if res.StatusCode == http.StatusTooManyRequests {
+		return Results{}, ErrProviderQuota
+	}
+	if res.StatusCode == http.StatusBadRequest || res.StatusCode == http.StatusUnprocessableEntity {
+		return Results{}, ErrProviderQuery
+	}
+	if res.StatusCode != http.StatusOK {
 		return Results{}, ErrUnavailable
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))

@@ -138,6 +138,23 @@ func (a *API) searchRentals(w http.ResponseWriter, r *http.Request) {
 		write(w, 429, map[string]string{"code": "capacity", "error": "Search is temporarily at capacity. Please try again later."})
 		return
 	}
+	if errors.Is(err, rentals.ErrProviderAuth) {
+		write(w, 503, map[string]string{"code": "provider_auth", "error": "Live rental search is temporarily unavailable while the data connection is checked."})
+		return
+	}
+	if errors.Is(err, rentals.ErrProviderPlan) {
+		write(w, 503, map[string]string{"code": "provider_plan", "error": "Live rental search is temporarily unavailable for this data source."})
+		return
+	}
+	if errors.Is(err, rentals.ErrProviderQuota) {
+		w.Header().Set("Retry-After", "3600")
+		write(w, 429, map[string]string{"code": "provider_capacity", "error": "The rental data source is temporarily at its request limit. Please try again later."})
+		return
+	}
+	if errors.Is(err, rentals.ErrProviderQuery) {
+		write(w, 422, map[string]string{"code": "provider_query", "error": "The rental data source could not match that search. Try a ZIP code or city and state."})
+		return
+	}
 	if err != nil {
 		write(w, 502, map[string]string{"code": "unavailable", "error": "We couldn't reach live rentals. Please try again shortly."})
 		return

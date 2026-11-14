@@ -4,13 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"haven.local/backend/internal/intelligence"
+	"haven.local/backend/internal/rentals"
 	"haven.local/backend/internal/store"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestImportContract(t *testing.T) {
 	token := strings.Repeat("x", 32)
@@ -80,5 +86,30 @@ func TestLiveSearchWithoutProviderIsExplicitlyUnavailable(t *testing.T) {
 	api.ServeHTTP(w, r)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"properties":[]`) {
 		t.Fatalf("unconfigured history contains unexpected data: %s", w.Body)
+	}
+}
+
+func TestLiveProviderFailuresReturnActionableSafeCodes(t *testing.T) {
+	for _, tc := range []struct {
+		upstream   int
+		wantCode   string
+		wantStatus int
+	}{
+		{401, "provider_auth", 503}, {403, "provider_plan", 503},
+		{429, "provider_capacity", 429}, {400, "provider_query", 422},
+	} {
+		t.Run(tc.wantCode, func(t *testing.T) {
+			live := rentals.New("test-key")
+			live.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: tc.upstream, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("private upstream detail")), Request: r}, nil
+			})}
+			api := (&API{Store: store.Unavailable{}, Live: live}).Handler()
+			r := httptest.NewRequest(http.MethodPost, "/api/v1/rentals/search", strings.NewReader(`{"area":"01002"}`))
+			w := httptest.NewRecorder()
+			api.ServeHTTP(w, r)
+			if w.Code != tc.wantStatus || !strings.Contains(w.Body.String(), `"code":"`+tc.wantCode+`"`) || strings.Contains(w.Body.String(), "private upstream detail") {
+				t.Fatalf("unexpected safe error response: %d %s", w.Code, w.Body)
+			}
+		})
 	}
 }

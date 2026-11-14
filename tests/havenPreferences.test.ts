@@ -11,6 +11,11 @@ test("returning preferences retain the actual area and optional budget", () => {
   assert.deepEqual(searchQuery(p), { area: "01002", max_rent_cents: 180050, min_beds: 2 });
   assert.deepEqual(searchQuery({ area: "Amherst, MA", budget: "", beds: "" }), { area: "Amherst, MA" });
 });
+test("manual locations accept ZIP+4 and common city/state typing", () => {
+  for (const area of ["01002-1234", "amherst ma", "Amherst, ma", "New York, NY"]) {
+    assert.equal(searchQuery({ area, budget: "", beds: "" }).area, area);
+  }
+});
 test("nearby search uses coarse coordinates and preserves studio as zero", () => {
   assert.deepEqual(searchQuery({ area: "", budget: "", beds: "0" }, { latitude: 42.37322, longitude: -72.51993 }), { area: "", min_beds: 0, latitude: 42.37, longitude: -72.52 });
 });
