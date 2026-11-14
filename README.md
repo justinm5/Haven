@@ -43,7 +43,7 @@ Haven helps renters search live listings, compare known rental costs, and review
 
 Without a RentCast key, the app still opens but live search is unavailable. PostgreSQL and Redis are optional for local live search; see [backend setup](backend/README.md) to enable property history and background processing.
 
-Vercel builds the Haven web app. Live search also needs the Go API hosted at a public URL, configured as `VITE_HAVEN_API_URL`, with `HAVEN_RENTCAST_API_KEY` set on the API server.
+Vercel builds the Haven web app and its Go API functions from this repository. In the Vercel project settings, add `HAVEN_RENTCAST_API_KEY` as a server-side environment variable for Production, then redeploy. Set `HAVEN_WEB_ORIGIN` to `https://haven-two-ruby.vercel.app` if using a different production domain. Do not use a `VITE_` prefix for the RentCast key. PostgreSQL and Redis are not required for live search; they are needed for persistent property history and background processing.
 
 ## Checks
 
