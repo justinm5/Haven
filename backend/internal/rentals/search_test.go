@@ -117,6 +117,19 @@ func TestProviderFailuresAreClassifiedWithoutExposingBody(t *testing.T) {
 		})
 	}
 }
+func TestProviderNoResultsIsAnEmptySuccessfulSearch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "no records match", http.StatusNotFound)
+	}))
+	defer server.Close()
+	c := New("test-key")
+	c.endpoint = server.URL
+	c.HTTP = server.Client()
+	got, err := c.Search(context.Background(), Query{Area: "01002"})
+	if err != nil || got.Listings == nil || len(got.Listings) != 0 || got.Source != "RentCast" || got.RetrievedAt.IsZero() {
+		t.Fatalf("expected an explicit empty provider result, got %+v, %v", got, err)
+	}
+}
 func TestEmptySourceRemainsEmpty(t *testing.T) {
 	r := normalize(nil, Query{Area: "01002"}, time.Now())
 	if r.Listings == nil || len(r.Listings) != 0 {

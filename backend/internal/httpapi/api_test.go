@@ -113,3 +113,17 @@ func TestLiveProviderFailuresReturnActionableSafeCodes(t *testing.T) {
 		})
 	}
 }
+
+func TestLiveProviderNoResultsReturnsEmptyListings(t *testing.T) {
+	live := rentals.New("test-key")
+	live.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusNotFound, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("no matching records")), Request: r}, nil
+	})}
+	api := (&API{Store: store.Unavailable{}, Live: live}).Handler()
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/rentals/search", strings.NewReader(`{"area":"01002"}`))
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"listings":[]`) {
+		t.Fatalf("valid search with no matches should return an empty result: %d %s", w.Code, w.Body)
+	}
+}

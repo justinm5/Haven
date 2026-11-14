@@ -256,9 +256,12 @@ func (c *Client) Search(ctx context.Context, q Query) (Results, error) {
 		return Results{}, ErrUnavailable
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotFound {
 		// Record only the HTTP status; never log API keys, query values, or response bodies.
 		slog.Warn("live rental provider request failed", "status", res.StatusCode)
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return Results{Listings: []Listing{}, RetrievedAt: now.UTC(), Source: "RentCast"}, nil
 	}
 	if res.StatusCode == http.StatusUnauthorized {
 		return Results{}, ErrProviderAuth
