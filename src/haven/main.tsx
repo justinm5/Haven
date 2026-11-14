@@ -12,7 +12,8 @@ type Rental = {
   history: { date: string; rent_cents: number; event: string }[];
 };
 type Results = { listings: Rental[]; retrieved_at: string; source: string; has_more: boolean };
-const api = (import.meta.env.VITE_HAVEN_API_URL || "http://127.0.0.1:8081").replace(/\/$/, "");
+const defaultApi = import.meta.env.DEV ? "http://127.0.0.1:8081" : "";
+const api = (import.meta.env.VITE_HAVEN_API_URL || defaultApi).replace(/\/$/, "");
 const savedKey = "haven:saved-rentals:v1";
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(cents / 100);
 function date(value: string) { const d = new Date(value.length === 10 ? `${value}T12:00:00Z` : value); return Number.isNaN(d.getTime()) ? "Date not supplied" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }

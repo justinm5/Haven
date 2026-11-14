@@ -1,5 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:haven",
+  "outputDirectory": "dist-haven",
   "rewrites": [
-    { "source": "/((?!assets/|favicon).*)", "destination": "/index.html" }
+    { "source": "/", "destination": "/haven.html" }
   ]
 }
