@@ -54,13 +54,19 @@ function Haven() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!query) return;
+    if (!query || liveAvailable !== true) return;
     const controller = new AbortController(); setLoading(true); setError(""); setResult(null); setSelected(null);
     fetch(`${api}/api/v1/rentals/search`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(query), signal: controller.signal })
       .then(async response => {
-        const data = await response.json();
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!contentType.toLowerCase().includes("json")) {
+          setLiveAvailable(false); setError(""); setResult(null); return;
+        }
+        let data: Results & { code?: string };
+        try { data = await response.json(); }
+        catch { setLiveAvailable(false); setError(""); setResult(null); return; }
         if (!response.ok) {
-          if (data.code === "not_connected") { setLiveAvailable(false); throw Error("Live rentals aren't available yet. Please check back soon."); }
+          if (data.code === "not_connected") { setLiveAvailable(false); setError(""); return; }
           throw Error(data.code === "invalid_search" ? "Enter a ZIP code or city and state, and check your preferences." : "We couldn't load rentals right now. Please try again shortly.");
         }
         if (!Array.isArray(data.listings)) throw Error("We couldn't load rentals right now.");
@@ -69,10 +75,11 @@ function Haven() {
       .catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to search right now."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [query, refresh]);
+  }, [query, refresh, liveAvailable]);
 
   function submit(event: FormEvent) {
     event.preventDefault(); setNotice("");
+    if (liveAvailable !== true) { setError(""); return; }
     try {
       const next = searchQuery(preferences, nearby);
       try { localStorage.setItem(preferenceKey, JSON.stringify({ ...preferences, area: nearby ? "" : preferences.area.trim() })); } catch { setNotice("Your search will work, but this browser couldn't remember your preferences."); }
@@ -111,7 +118,7 @@ function Haven() {
         <label className="haven-area-field">Where do you want to live?<input aria-describedby="location-note" value={nearby ? "Near my location" : preferences.area} maxLength={120} placeholder="City, state or ZIP" onChange={e => { locationRequest.current++; setLocating(false); setNearby(undefined); setPreferences(p => ({ ...p, area: e.target.value })); }}/></label>
         <label>Max rent / month<input type="number" min="1" max="1000000" step="0.01" placeholder="Any budget" value={preferences.budget} onChange={e => setPreferences(p => ({ ...p, budget: e.target.value }))}/></label>
         <label>Bedrooms<select value={preferences.beds} onChange={e => setPreferences(p => ({ ...p, beds: e.target.value }))}><option value="">Any</option><option value="0">Studio</option>{[1,2,3,4,5].map(n => <option key={n} value={String(n)}>{n}+</option>)}</select></label>
-        <button className="haven-primary" type="submit" disabled={loading || locating}>{loading ? "Searching…" : "Find rentals"}</button>
+        <button className="haven-primary" type="submit" disabled={loading || locating || liveAvailable !== true}>{loading ? "Searching…" : liveAvailable === null ? "Checking search…" : liveAvailable ? "Find rentals" : "Search unavailable"}</button>
         <div className="haven-location-row"><button className="haven-location-button" type="button" disabled={locating || liveAvailable !== true} onClick={useLocation}>{locating ? "Finding your area…" : "⌖ Use my location"}</button><span id="location-note">Optional. Nearby searches share approximate coordinates with RentCast, with your permission.</span>{(preferences.area || preferences.budget || preferences.beds || nearby) && <button type="button" className="haven-location-button" onClick={clearSearch}>Clear search</button>}</div>
       </form>
       {notice && <p className="haven-customer-note" role="status">{notice}</p>}
