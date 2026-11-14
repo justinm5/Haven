@@ -1,0 +1,2 @@
+-- Listing seeding removed. Import only real records from a permitted source.
+-- This migration intentionally makes no data changes.

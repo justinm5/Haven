@@ -1,0 +1,60 @@
+name: haven-intelligence
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: haven
+      POSTGRES_USER: haven
+      POSTGRES_PASSWORD: ${HAVEN_DB_PASSWORD:?Set HAVEN_DB_PASSWORD in backend/.env}
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: ["haven-postgres:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haven -d haven"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6380:6379"]
+    volumes: ["haven-redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./backend
+    command: ["-mode", "migrate"]
+    environment: &haven-environment
+      HAVEN_DATABASE_URL: postgres://haven:${HAVEN_DB_PASSWORD}@postgres:5432/haven?sslmode=disable
+      HAVEN_REDIS_URL: redis://redis:6379/0
+      HAVEN_RENTCAST_API_KEY: ${HAVEN_RENTCAST_API_KEY:-}
+      HAVEN_IMPORT_TOKEN: ${HAVEN_IMPORT_TOKEN:?Set HAVEN_IMPORT_TOKEN in backend/.env}
+      HAVEN_ALLOWED_SOURCES: ${HAVEN_ALLOWED_SOURCES:-manual}
+      HAVEN_WEB_ORIGIN: ${HAVEN_WEB_ORIGIN:-http://127.0.0.1:5173}
+      HAVEN_LISTEN_ADDR: 0.0.0.0:8081
+    depends_on:
+      postgres: { condition: service_healthy }
+  api:
+    build: ./backend
+    environment: *haven-environment
+    ports: ["127.0.0.1:8081:8081"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  worker:
+    build: ./backend
+    command: ["-mode", "worker", "-workers", "2"]
+    environment: *haven-environment
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+volumes:
+  haven-postgres:
+  haven-redis:

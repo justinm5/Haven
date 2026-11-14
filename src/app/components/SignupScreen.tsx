@@ -1,0 +1,308 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { motion } from "motion/react";
+import { Eye, EyeOff, Loader2, Check, Sun, Moon, ArrowLeft } from "lucide-react";
+import { Logo } from "./Logo";
+import { GoogleIcon } from "./GoogleIcon";
+import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "./ThemeProvider";
+
+export function SignupScreen() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { user, signUp, signInWithGoogle, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const handleSignOutAndStay = async () => {
+    await signOut();
+    setError(null);
+  };
+
+  const handleGoogleSignUp = async () => {
+    setError(null);
+    const { error } = await signInWithGoogle();
+    if (error) setError(error.message);
+  };
+
+  const passwordRequirements = [
+    { label: "At least 8 characters", met: password.length >= 8 },
+    { label: "Contains a number", met: /\d/.test(password) },
+    {
+      label: "Contains uppercase letter",
+      met: /[A-Z]/.test(password),
+    },
+  ];
+
+  const allRequirementsMet = passwordRequirements.every((req) => req.met);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!allRequirementsMet) {
+      setError("Please meet all password requirements");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await signUp(email, password, firstName, lastName);
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setLoading(false);
+        navigate("/onboarding");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Background gradient */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+      </div>
+
+      {/* Header with logo - same as onboarding */}
+      <div className="relative z-10 px-6 py-5 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2.5">
+          <Logo className="w-8 h-8" />
+          <span className="text-[18px] text-foreground" style={{ fontWeight: 700 }}>
+            Haven
+          </span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-10 h-10 rounded-xl bg-muted hover:bg-accent transition-colors flex items-center justify-center"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? (
+              <Sun size={18} className="text-muted-foreground" />
+            ) : (
+              <Moon size={18} className="text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Nav row - same layout as onboarding (Home left) */}
+      <div className="relative z-10 px-6 py-4">
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-[14px]"
+          >
+            <ArrowLeft size={16} />
+            Home
+          </Link>
+        </div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative z-10 flex-1 flex items-center justify-center p-4"
+      >
+        <div className="w-full max-w-md">
+        {/* Card */}
+        <div className="bg-card border border-border rounded-2xl p-8">
+          <h1 className="text-2xl font-bold text-foreground text-center mb-2">
+            Create your account
+          </h1>
+          <p className="text-muted-foreground text-center mb-8">
+            Start your smart apartment search today
+          </p>
+
+          {user && (
+            <div className="mb-6 p-3 rounded-xl bg-muted/50 border border-border flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">
+                Signed in as another account. Sign out to use a different one.
+              </span>
+              <button
+                type="button"
+                onClick={handleSignOutAndStay}
+                className="text-sm font-medium text-foreground hover:text-emerald-500 transition-colors shrink-0"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
+              >
+                {error}
+              </motion.div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  First name
+                </label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-xl bg-input-background dark:bg-white/5 border-2 border-input-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Last name
+                </label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-xl bg-input-background dark:bg-white/5 border-2 border-input-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                  placeholder="Doe"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-input-background dark:bg-white/5 border-2 border-input-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 rounded-xl bg-input-background dark:bg-white/5 border-2 border-input-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all pr-12"
+                  placeholder="Create a password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Password requirements */}
+              {password && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="mt-3 space-y-2"
+                >
+                  {passwordRequirements.map((req, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center gap-2 text-sm ${
+                        req.met ? "text-emerald-500" : "text-muted-foreground"
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                          req.met
+                            ? "bg-emerald-500/20"
+                            : "bg-muted"
+                        }`}
+                      >
+                        {req.met && <Check className="w-3 h-3" />}
+                      </div>
+                      {req.label}
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !allRequirementsMet}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                "Create account"
+              )}
+            </button>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-card px-3 text-muted-foreground">or</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleSignUp}
+              className="w-full py-3 rounded-xl border-2 border-input-border bg-input-background dark:bg-white/5 text-foreground font-semibold hover:bg-muted dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+            >
+              <GoogleIcon className="w-5 h-5 shrink-0" />
+              Sign up with Google
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-muted-foreground">
+              Already have an account?{" "}
+              <Link
+                to="/login"
+                className="text-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition-colors"
+              >
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        <p className="text-center text-muted-foreground text-sm mt-6">
+          By creating an account, you agree to our Terms of Service and Privacy
+          Policy
+        </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
