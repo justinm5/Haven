@@ -3,6 +3,7 @@ export type SearchQuery = { area: string; max_rent_cents?: number; min_beds?: nu
 export const preferenceKey = "haven:search-preferences:v1";
 export const emptyPreferences: Preferences = { area: "", budget: "", beds: "" };
 const validArea = (area: string) => /^\d{5}(?:-\d{4})?$/.test(area.trim()) || /^.{2,100}(?:,\s*|\s+)[a-z]{2}$/i.test(area.trim());
+export const isAmherstSearch = (area: string) => /^(?:amherst(?:,\s*|\s+)ma|01002(?:-\d{4})?)$/i.test(area.trim());
 
 export function readPreferences(value: unknown): Preferences {
   if (!value || typeof value !== "object") return { ...emptyPreferences };

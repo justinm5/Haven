@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readPreferences, searchQuery } from "../src/haven/preferences.ts";
+import { isAmherstSearch, readPreferences, searchQuery } from "../src/haven/preferences.ts";
 
 test("a first visit has no invented location or budget", () => {
   assert.deepEqual(readPreferences(null), { area: "", budget: "", beds: "" });
@@ -15,6 +15,10 @@ test("manual locations accept ZIP+4 and common city/state typing", () => {
   for (const area of ["01002-1234", "amherst ma", "Amherst, ma", "New York, NY"]) {
     assert.equal(searchQuery({ area, budget: "", beds: "" }).area, area);
   }
+});
+test("the UMass fallback only appears for Amherst searches", () => {
+  for (const area of ["Amherst, MA", "amherst ma", "01002", "01002-1234"]) assert.equal(isAmherstSearch(area), true);
+  for (const area of ["01003", "Boston, MA", "Northampton, MA", ""]) assert.equal(isAmherstSearch(area), false);
 });
 test("nearby search uses coarse coordinates and preserves studio as zero", () => {
   assert.deepEqual(searchQuery({ area: "", budget: "", beds: "0" }, { latitude: 42.37322, longitude: -72.51993 }), { area: "", min_beds: 0, latitude: 42.37, longitude: -72.52 });

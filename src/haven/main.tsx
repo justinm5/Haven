@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { RentalCostPlanner } from "../app/components/RentalCostPlanner";
-import { emptyPreferences, preferenceKey, readPreferences, searchQuery, type Preferences, type SearchQuery } from "./preferences";
+import { emptyPreferences, isAmherstSearch, preferenceKey, readPreferences, searchQuery, type Preferences, type SearchQuery } from "./preferences";
 import "../styles/index.css";
 import "./styles.css";
 
@@ -117,6 +117,7 @@ function Haven() {
   }
   const shown = savedOnly ? saved : result?.listings ?? [];
   const areaLabel = query?.latitude !== undefined ? "near you" : query?.area || "your area";
+  const showAmherstPortal = isAmherstSearch(query?.area ?? "");
 
   return <div className="haven-app">
     <header className="haven-header"><a className="haven-brand" href="/haven.html"><span className="haven-mark">h.</span>Haven</a><button className="haven-secondary" onClick={() => { setSavedOnly(v => !v); setSelected(null); }}>{savedOnly ? "Back to search" : `Saved (${saved.length})`}</button></header>
@@ -130,7 +131,7 @@ function Haven() {
         <div className="haven-location-row"><button className="haven-location-button" type="button" disabled={locating || liveAvailable !== true} onClick={useLocation}>{locating ? "Finding your area…" : "⌖ Use my location"}</button><span id="location-note">Optional. Nearby searches share approximate coordinates with RentCast, with your permission.</span>{(preferences.area || preferences.budget || preferences.beds || nearby) && <button type="button" className="haven-location-button" onClick={clearSearch}>Clear search</button>}</div>
       </form>
       {notice && <p className="haven-customer-note" role="status">{notice}</p>}
-      {error && <div className="haven-error" role="alert">{error}<button onClick={() => setRefresh(n => n + 1)}>Try again</button></div>}
+      {error && <div className="haven-error" role="alert">{error}<button onClick={() => setRefresh(n => n + 1)}>Try again</button>{showAmherstPortal && <><br/><a href="https://offcampushousing.umass.edu/" target="_blank" rel="noopener noreferrer">Browse UMass Amherst off-campus housing ↗</a></>}</div>}
       <section aria-live="polite" className="haven-results">
         <div className="haven-section-heading"><h2>{savedOnly ? "Your saved rentals" : result ? `Rentals ${areaLabel}` : "Made for your search"}</h2>{result && !savedOnly && <span>{shown.length} results · sorted by listed rent</span>}</div>
         {loading && !savedOnly && <div className="haven-panel haven-empty">Finding rentals that match your preferences…</div>}
